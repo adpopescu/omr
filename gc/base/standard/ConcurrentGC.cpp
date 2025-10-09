@@ -1576,14 +1576,18 @@ MM_ConcurrentGC::concurrentMark(MM_EnvironmentBase *env, MM_MemorySubSpace *subs
 void
 MM_ConcurrentGC::acquireExclusiveVMAccessAndSignalThreadsToActivateWriteBarrier(MM_EnvironmentBase *env)
 {
+	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+	omrtty_printf("\n-- AcquireExclusiveVMAccessAndSignalThreads 1: Start --\nThread/Env ID: %d\nGlobal GC Stats Count: %d\nExecution Mode: %d\n\n", env->getEnvironmentId(), _extensions->globalGCStats.gcCount, _stats.getExecutionMode());
 	uintptr_t gcCount = _extensions->globalGCStats.gcCount;
 
 	/* Things may have moved on since async callback requested */
 	while (CONCURRENT_INIT_COMPLETE == _stats.getExecutionMode()) {
+		omrtty_printf("\n-- AcquireExclusiveVMAccessAndSignalThreads 2: Start of while --\nThread/Env ID: %d\nGlobal GC Stats Count: %d\nExecution Mode: %d\n\n", env->getEnvironmentId(), _extensions->globalGCStats.gcCount, _stats.getExecutionMode());
 		/* We may or may not have exclusive access but another thread may have beat us to it and
 		 * prepared the threads or even collected.
 		 */
 		if (acquireExclusiveVMAccessForCycleStart(env)) {
+			omrtty_printf("\n-- AcquireExclusiveVMAccessAndSignalThreads 3: In while, start of first if --\nThread/Env ID: %d\nGlobal GC Stats Count: %d\nExecution Mode: %d\n\n", env->getEnvironmentId(), _extensions->globalGCStats.gcCount, _stats.getExecutionMode());
 			MM_CycleState *previousCycleState = env->_cycleState;
 			_concurrentCycleState = MM_CycleState();
 			_concurrentCycleState._type = _cycleType;
@@ -1604,6 +1608,7 @@ MM_ConcurrentGC::acquireExclusiveVMAccessAndSignalThreadsToActivateWriteBarrier(
 		}
 
 		if (gcCount != _extensions->globalGCStats.gcCount) {
+			omrtty_printf("\n-- AcquireExclusiveVMAccessAndSignalThreads 4: In while, start of second if --\nThread/Env ID: %d\nGlobal GC Stats Count: %d\nExecution Mode: %d\n\n", env->getEnvironmentId(), _extensions->globalGCStats.gcCount, _stats.getExecutionMode());
 			break;
 		}
 	}
