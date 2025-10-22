@@ -259,6 +259,8 @@ MM_SegregatedGC::internalPreCollect(MM_EnvironmentBase *env, MM_MemorySubSpace *
 	_extensions->globalGCStats.clear();
 	_extensions->globalGCStats.gcCount++;
 	env->_cycleState->_currentCycleID = env->getExtensions()->getUniqueGCCycleCount();
+	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+	omrtty_printf("\n-- Set Cycle ID: Segregated  --\nGC ID: %d\n\n", env->_cycleState->_currentCycleID );
 
 	MM_MemoryPoolSegregated *memoryPool = (MM_MemoryPoolSegregated *) env->getDefaultMemorySubSpace()->getMemoryPool();
 
@@ -330,6 +332,8 @@ MM_SegregatedGC::reportGCCycleStart(MM_EnvironmentBase *env)
 	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
 	MM_CollectionStatisticsStandard *stats = (MM_CollectionStatisticsStandard *)env->_cycleState->_collectionStatistics;
 
+	omrtty_printf("\n-- reportCycleStart: Segregated --\nGC ID: %d\nThread/Env ID: %d\nGlobal GC Stats Count: %d\nExecution Mode: %d\n\n", env->_cycleState->_currentCycleID, omrthread_get_ras_tid(), _extensions->globalGCStats.gcCount);
+
 	/* Clear STW pause stats for this cycle. */
 	stats->clearPauseStats();
 	MM_CommonGCData commonData;
@@ -348,7 +352,11 @@ void
 MM_SegregatedGC::reportGCCycleEnd(MM_EnvironmentBase *env)
 {
 	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+	MM_CollectionStatisticsStandard *stats = (MM_CollectionStatisticsStandard *)env->_cycleState->_collectionStatistics;
+	omrtty_printf("\n-- SegregatedGC --\nGC ID: %d\nSTW Total Pauses: %dμs\nSTW Longest Pause: %dμs\n", env->_cycleState->_currentCycleID, omrtime_hires_delta(0, stats->_pauseTotal, OMRPORT_TIME_DELTA_IN_MICROSECONDS), omrtime_hires_delta(0, stats->_pauseLongest, OMRPORT_TIME_DELTA_IN_MICROSECONDS));
 	MM_CommonGCData commonData;
+
+	omrtty_printf("\n-- reportCycleEnd: Segregated --\nThread/Env ID: %d\nGlobal GC Stats Count: %d\nExecution Mode: %d\n\n", omrthread_get_ras_tid(), _extensions->globalGCStats.gcCount);
 
 	TRIGGER_J9HOOK_MM_PRIVATE_GC_POST_CYCLE_END(
 		_extensions->privateHookInterface,

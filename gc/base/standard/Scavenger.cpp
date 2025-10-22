@@ -4320,6 +4320,7 @@ MM_Scavenger::mainThreadGarbageCollect(MM_EnvironmentBase *envBase, MM_AllocateD
 			processLargeAllocateStatsBeforeGC(env);
 		}
 		env->_cycleState->_currentCycleID = _extensions->getUniqueGCCycleCount();
+		omrtty_printf("\n-- Set Cycle ID: Scavenger  --\nGC ID: %d\n\n", env->_cycleState->_currentCycleID);
 		reportGCCycleStart(env);
 		_cycleTimes.cycleStart = omrtime_hires_clock();
 		mainSetupForGC(env);
@@ -4972,6 +4973,8 @@ MM_Scavenger::reportGCCycleStart(MM_EnvironmentStandard *env)
 	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
 	MM_CollectionStatisticsStandard *stats = (MM_CollectionStatisticsStandard *)env->_cycleState->_collectionStatistics;
 
+	omrtty_printf("\n-- reportCycleStart: Scavenger --\nGC ID: %d\nThread/Env ID: %d\nGlobal GC Stats Count: %d\nExecution Mode: %d\n\n", env->_cycleState->_currentCycleID, omrthread_get_ras_tid(), _extensions->globalGCStats.gcCount);
+
 	/* Clear STW pause stats for this cycle. */
 	stats->clearPauseStats();
 
@@ -4992,8 +4995,12 @@ void
 MM_Scavenger::reportGCCycleEnd(MM_EnvironmentStandard *env)
 {
 	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+	MM_CollectionStatisticsStandard *stats = (MM_CollectionStatisticsStandard *)env->_cycleState->_collectionStatistics;
+	omrtty_printf("\n-- ScavengerGC --\nGC ID: %d\nSTW Total Pauses: %dμs\nSTW Longest Pause: %dμs\n", env->_cycleState->_currentCycleID, omrtime_hires_delta(0, stats->_pauseTotal, OMRPORT_TIME_DELTA_IN_MICROSECONDS), omrtime_hires_delta(0, stats->_pauseLongest, OMRPORT_TIME_DELTA_IN_MICROSECONDS));
 	MM_GCExtensionsBase* extensions = env->getExtensions();
 	MM_CommonGCData commonData;
+
+	omrtty_printf("\n-- reportCycleEnd: Scavenger --\nThread/Env ID: %d\nGlobal GC Stats Count: %d\nExecution Mode: %d\n\n", omrthread_get_ras_tid(), _extensions->globalGCStats.gcCount);
 
 	Trc_MM_CycleEnd(env->getLanguageVMThread(), env->_cycleState->_type, _extensions->getHeap()->getActualFreeMemorySize());
 

@@ -445,6 +445,8 @@ MM_EnvironmentBase::acquireExclusiveVMAccessForGC(MM_Collector *collector, bool 
 	/* thread is the winner for requesting a GC (possibly through recursive
 	 * calls).  proceed with acquiring exclusive access. */
 	Assert_MM_true(_omrVMThread == extensions->gcExclusiveAccessThreadId);
+	OMRPORT_ACCESS_FROM_ENVIRONMENT(this);
+	omrtty_printf("\n-- AcquireExclusiveVMAccessForGC --\nThread/Env ID: %d\nGlobal GC Stats Count: %d\n\n", omrthread_get_ras_tid(), extensions->globalGCStats.gcCount);
 
 	collector->notifyAcquireExclusiveVMAccess(this);
 
@@ -460,6 +462,9 @@ void
 MM_EnvironmentBase::releaseExclusiveVMAccessForGC()
 {
 	MM_GCExtensionsBase *extensions = MM_GCExtensionsBase::getExtensions(_omrVM);
+
+	OMRPORT_ACCESS_FROM_ENVIRONMENT(this);
+	omrtty_printf("\n-- releaseExclusiveVMAccessForGC --\nThread/Env ID: %d\nGlobal GC Stats Count: %d\nExecution Mode: %d\n\n", omrthread_get_ras_tid(), extensions->globalGCStats.gcCount);
 
 	Assert_MM_true(extensions->gcExclusiveAccessThreadId == _omrVMThread);
 	Assert_MM_true(0 != _exclusiveCount);

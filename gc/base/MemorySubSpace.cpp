@@ -237,6 +237,8 @@ MM_MemorySubSpace::reportAllocationFailureStart(MM_EnvironmentBase* env, MM_Allo
 
 	env->allocationFailureStartReportIfRequired(allocDescription, getTypeFlags());
 
+	omrtty_printf("\n-- reportAllocationFailureStart --\nThread/Env ID: %d\nGlobal GC Stats Count: %d\n\n", omrthread_get_ras_tid(), _extensions->globalGCStats.gcCount);
+
 	Trc_MM_AllocationFailureCycleStart(env->getLanguageVMThread(),
 									   _extensions->heap->getApproximateActiveFreeMemorySize(MEMORY_TYPE_NEW),
 									   _extensions->heap->getActiveMemorySize(MEMORY_TYPE_NEW),
@@ -915,7 +917,8 @@ MM_MemorySubSpace::systemGarbageCollect(MM_EnvironmentBase* env, uint32_t gcCode
 		_parent->systemGarbageCollect(env, gcCode);
 		return;
 	}
-
+	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+	omrtty_printf("\n-- systemGarbageCollect --\nThread/Env ID: %d\nGlobal GC Stats Count: %d\n\n", omrthread_get_ras_tid(), _extensions->globalGCStats.gcCount);
 	/* do not launch system gc in -Xgcpolicy:nogc */
 	if (_collector && _usesGlobalCollector && !_collector->isDisabled(env)) {
 		/* TODO: This is bogus for multiple memory spaces - should ask the space, not the heap */
