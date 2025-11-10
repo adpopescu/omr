@@ -27,11 +27,12 @@
 #include "omrport.h"
 #include "modronbase.h"
 #include "omr.h"
+#include "EnvironmentBase.hpp"
 
 #include "AtomicOperations.hpp"
 #include "Base.hpp"
 
-class MM_EnvironmentBase;
+//class MM_EnvironmentBase;
 
 /**
  * @todo Provide class documentation
@@ -85,6 +86,13 @@ public:
 	
 	MMINLINE bool switchExecutionMode(uintptr_t oldMode, uintptr_t newMode)
 	{
+		return oldMode == MM_AtomicOperations::lockCompareExchange(&_executionMode, oldMode, newMode);
+	}
+
+	MMINLINE bool switchExecutionMode(MM_EnvironmentBase *env, uintptr_t oldMode, uintptr_t newMode)
+	{
+		OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+		omrtty_printf("\n-- SwitchExecutionMode --\nThread/Env ID: %x\nOld Mode: %d\nNew Mode: %d\n\n", env->getLanguageVMThread(), oldMode, newMode);
 		return oldMode == MM_AtomicOperations::lockCompareExchange(&_executionMode, oldMode, newMode);
 	}
 	

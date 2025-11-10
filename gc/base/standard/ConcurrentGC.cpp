@@ -1590,6 +1590,8 @@ MM_ConcurrentGC::acquireExclusiveVMAccessAndSignalThreadsToActivateWriteBarrier(
 			env->_cycleState = &_concurrentCycleState;
 			env->_cycleState->_collectionStatistics = &_collectionStatistics;
 			_extensions->globalGCStats.gcCount += 1;
+			OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+			omrtty_printf("\n-- AcquireExclusiveVMAccessAndSignalThreads Concurrent 1 --\nThread/Env ID: %x\nGlobal GC Stats Count: %d\nExecution Mode: %d\n\n", env->getLanguageVMThread(), _extensions->globalGCStats.gcCount, _stats.getExecutionMode());
 			env->_cycleState->_currentCycleID = _extensions->getUniqueGCCycleCount();
 			reportGCCycleStart(env);
 			env->_cycleState = previousCycleState;
@@ -1597,7 +1599,9 @@ MM_ConcurrentGC::acquireExclusiveVMAccessAndSignalThreadsToActivateWriteBarrier(
 			_concurrentPhaseStats.clear();
 			preConcurrentInitializeStatsAndReport(env);
 
+			omrtty_printf("\n-- AcquireExclusiveVMAccessAndSignalThreads Concurrent 2 --\nThread/Env ID: %x\nGlobal GC Stats Count: %d\nExecution Mode: %d\n\n", env->getLanguageVMThread(), _extensions->globalGCStats.gcCount, _stats.getExecutionMode());
 			setupForConcurrent(env);
+			omrtty_printf("\n-- AcquireExclusiveVMAccessAndSignalThreads Concurrent 3 --\nThread/Env ID: %x\nGlobal GC Stats Count: %d\nExecution Mode: %d\n\n", env->getLanguageVMThread(), _extensions->globalGCStats.gcCount, _stats.getExecutionMode());
 
 			/* Cancel any outstanding call backs on other threads as this thread has done the necessary work */
 			_callback->cancelCallback(env);
@@ -2008,9 +2012,13 @@ MM_ConcurrentGC::internalPreCollect(MM_EnvironmentBase *env, MM_MemorySubSpace *
 		reportGCStart(env);
 		reportGCIncrementStart(env);
 		reportGlobalGCIncrementStart(env);
+		OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+		//char timestamp[32];
 
+		//omrstr_ftime_ex(timestamp, sizeof(timestamp), "%b %d %H:%M:%S %Y", omrtime_current_time_millis(), OMRSTR_FTIME_FLAG_LOCAL);
+		omrtty_printf("\n-- internalPreCollect Concurrent 1 --\nThread/Env ID: %x\nGlobal GC Stats Count: %d\nExecution Mode: %d\n\n", env->getLanguageVMThread(), _extensions->globalGCStats.gcCount, _stats.getExecutionMode());
 		/* Switch the executionMode to OFF to complete the STW collection */
-		_stats.switchExecutionMode(executionModeAtGC, CONCURRENT_OFF);
+		_stats.switchExecutionMode(env, executionModeAtGC, CONCURRENT_OFF);
 
 		_extensions->setConcurrentGlobalGCInProgress(false);
 
@@ -2182,8 +2190,12 @@ MM_ConcurrentGC::abortCollection(MM_EnvironmentBase *env, CollectionAbortReason 
 	 * the following switch of execution mode should always succeed ....
 	 */
 	switchConHelperRequest(CONCURRENT_HELPER_MARK, CONCURRENT_HELPER_WAIT);
+	OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
+	//char timestamp[32];
 
-	_stats.switchExecutionMode(_stats.getExecutionMode(), CONCURRENT_OFF);
+	//omrstr_ftime_ex(timestamp, sizeof(timestamp), "%b %d %H:%M:%S %Y", omrtime_current_time_millis(), OMRSTR_FTIME_FLAG_LOCAL);
+	omrtty_printf("\n-- abortCollection Concurrent 1 --\nThread/Env ID: %x\nGlobal GC Stats Count: %d\nExecution Mode: %d\n\n", env->getLanguageVMThread(), _extensions->globalGCStats.gcCount, _stats.getExecutionMode());
+	_stats.switchExecutionMode(env, _stats.getExecutionMode(), CONCURRENT_OFF);
 
 	_extensions->setConcurrentGlobalGCInProgress(false);
 
