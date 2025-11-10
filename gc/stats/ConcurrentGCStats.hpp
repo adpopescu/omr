@@ -95,7 +95,7 @@ public:
 		omrtty_printf("\n-- SwitchExecutionMode --\nThread/Env ID: %x\nOld Mode: %d\nNew Mode: %d\n\n", env->getLanguageVMThread(), oldMode, newMode);
 		return oldMode == MM_AtomicOperations::lockCompareExchange(&_executionMode, oldMode, newMode);
 	}
-	
+
 	MMINLINE uintptr_t  getExecutionModeAtGC() { return _executionModeAtGC; };
 	MMINLINE void  setExecutionModeAtGC(uintptr_t executionMode) { _executionModeAtGC = executionMode; };
 	
