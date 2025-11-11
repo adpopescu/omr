@@ -1590,6 +1590,7 @@ MM_ConcurrentGC::acquireExclusiveVMAccessAndSignalThreadsToActivateWriteBarrier(
 			env->_cycleState = &_concurrentCycleState;
 			env->_cycleState->_collectionStatistics = &_collectionStatistics;
 			_extensions->globalGCStats.gcCount += 1;
+			MM_AtomicOperations::storeSync();
 			OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
 			omrtty_printf("\n-- AcquireExclusiveVMAccessAndSignalThreads Concurrent 1 --\nThread/Env ID: %x\nGlobal GC Stats Count: %d\nExecution Mode: %d\n\n", env->getLanguageVMThread(), _extensions->globalGCStats.gcCount, _stats.getExecutionMode());
 			env->_cycleState->_currentCycleID = _extensions->getUniqueGCCycleCount();
