@@ -2011,6 +2011,7 @@ MM_ConcurrentGC::internalPreCollect(MM_EnvironmentBase *env, MM_MemorySubSpace *
 
 		/* Switch the executionMode to OFF to complete the STW collection */
 		_stats.switchExecutionMode(executionModeAtGC, CONCURRENT_OFF);
+		MM_AtomicOperations::writeBarrier();
 
 		_extensions->setConcurrentGlobalGCInProgress(false);
 
