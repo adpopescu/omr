@@ -212,7 +212,7 @@ MM_ConcurrentCardTableForWC::getExclusiveCardTableAccess(MM_EnvironmentBase *env
 	bool phaseChangeCompleted = false;
 
 	env->acquireExclusiveVMAccess();
-	if ((gcCount != _extensions->globalGCStats.gcCount) || (currentPhase != _cardCleanPhase)) {
+	if ((gcCount != _extensions->globalGCStats.gcCount) || (currentPhase != _cardCleanPhase) || (CONCURRENT_INIT_COMPLETE >= _collector->getConcurrentGCStats()->getExecutionMode())) {
 		/* Nothing to do so get out  */
 		phaseChangeCompleted = true;
 	}
