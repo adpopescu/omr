@@ -71,13 +71,10 @@ class MM_Scavenger : public MM_Collector
 	 * Data members
 	 */
 public:
-	struct {
-		/* The following start/end times record total cycle and cycle increment durations, done only by main thread. */
-		uint64_t cycleStart;
-		uint64_t cycleEnd;
-		uint64_t incrementStart;
-		uint64_t incrementEnd;
-	} _cycleTimes;
+
+	/* The following start/end times record cycle increment durations, done only by main thread. */
+	uint64_t _incrementStart;
+	uint64_t _incrementEnd;
 
 private:
 	MM_ScavengerDelegate _delegate;
@@ -974,7 +971,6 @@ public:
 
 	MM_Scavenger(MM_EnvironmentBase *env) :
 		MM_Collector()
-		, _cycleTimes()
 		, _delegate(env)
 		, _objectAlignmentInBytes(env->getObjectAlignmentInBytes())
 		, _isRememberedSetInOverflowAtTheBeginning(false)
