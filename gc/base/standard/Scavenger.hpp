@@ -345,8 +345,11 @@ public:
 	MMINLINE bool
 	shouldStartDeepScan(MM_EnvironmentStandard *env, omrobjectptr_t objectPtr)
 	{
+		if (_extensions->disableDeepScan) {
+			return false;
+		}
 		/* Check last few LSB of the object address for probability 1/16 */
-		return (0 == ((uintptr_t)objectPtr & 0x78)); 
+		return (0 == ((uintptr_t)objectPtr & 0x78));
 	}
 
 	void deepScanOutline(MM_EnvironmentStandard *env, omrobjectptr_t objectPtr, uintptr_t priorityFieldOffset1, uintptr_t priorityFieldOffset2);

@@ -382,6 +382,11 @@ public:
 #endif /* defined(OMR_GC_LARGE_OBJECT_AREA) */
 
 	bool disableExplicitGC;
+	bool disableDeepScan; /**< if true, deep structure scan is suppressed for both Scavenger (GenCon) and CopyForward (Balanced) */
+	uintptr_t deepScanGateDivisor; /**< probability denominator for the deep-scan lazy-start gate (default 64 → fires ~1/64 of objects); must be a power of 2 >= 2 */
+	uintptr_t deepScanThrottleNum; /**< numerator of the cache-release budget ratio (default 1); increase to walk further before yielding to sibling threads */
+	uintptr_t deepScanThrottleDen; /**< denominator of the cache-release budget ratio (default 1); increase to exit the chain sooner */
+	uintptr_t deepScanMaxNodes; /**< hard cap on nodes walked per deepScanOutline invocation regardless of cache pressure (default UDATA_MAX = unlimited) */
 	uintptr_t heapAlignment;
 	uintptr_t absoluteMinimumOldSubSpaceSize;
 	uintptr_t absoluteMinimumNewSubSpaceSize;
@@ -1604,6 +1609,11 @@ public:
 		, minimumContractionRatio(DEFAULT_MINIMUM_CONTRACTION_RATIO)
 #endif /* defined(OMR_GC_LARGE_OBJECT_AREA) */
 		, disableExplicitGC(false)
+		, disableDeepScan(false)
+		, deepScanGateDivisor(64)
+		, deepScanThrottleNum(1)
+		, deepScanThrottleDen(1)
+		, deepScanMaxNodes(UDATA_MAX)
 		, heapAlignment(HEAP_ALIGNMENT)
 		, absoluteMinimumOldSubSpaceSize(MINIMUM_OLD_SPACE_SIZE)
 		, absoluteMinimumNewSubSpaceSize(MINIMUM_NEW_SPACE_SIZE)

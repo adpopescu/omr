@@ -101,6 +101,10 @@ public:
 	uint64_t _completeStallTime; 	/**< The time, in hi-res ticks, the thread spent stalled waiting for all other threads to complete working */
 	uintptr_t _copiedArraysSplit; 	/**< The number of array chunks (not counting parts smaller than the split size) processed by this thread in copy-forward mode*/
 	uintptr_t _markedArraysSplit; 	/**< The number of array chunks (not counting parts smaller than the split size) processed by this thread in mark mode*/
+	uintptr_t _totalDeepStructures; /**< The number of deep structures that are scanned with priority (number of deepScanOutline function calls) */
+	uintptr_t _totalObjsDeepScanned; /**< The total number of deep structure objects that are special treated (number of copyAndForward with priority) */
+	uintptr_t _depthDeepestStructure; /**< Length of longest deep structure that is special treated */
+	bool _deepScanSuppressed; /**< Set when the first copyAndForward in a deepScanOutline fails (no survivor space); suppresses all further deep scan attempts for this GC cycle */
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
 	uintptr_t _heapExpandedBytes; /**< Bytes by which the heap expanded in order to complete the collection */
@@ -255,6 +259,10 @@ public:
 		_completeStallTime = 0;
 		_copiedArraysSplit = 0;
 		_markedArraysSplit = 0;
+		_totalDeepStructures = 0;
+		_totalObjsDeepScanned = 0;
+		_depthDeepestStructure = 0;
+		_deepScanSuppressed = false;
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 		
 		_heapExpandedBytes = 0;
@@ -297,6 +305,11 @@ public:
 		_completeStallTime += stats->_completeStallTime;
 		_copiedArraysSplit += stats->_copiedArraysSplit;
 		_markedArraysSplit += stats->_markedArraysSplit;
+		_totalDeepStructures += stats->_totalDeepStructures;
+		_totalObjsDeepScanned += stats->_totalObjsDeepScanned;
+		if (stats->_depthDeepestStructure > _depthDeepestStructure) {
+			_depthDeepestStructure = stats->_depthDeepestStructure;
+		}
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
 		_copyObjectsTotal += stats->_copyObjectsTotal;
@@ -386,6 +399,10 @@ public:
 		,_completeStallTime(0)
 		,_copiedArraysSplit(0)
 		,_markedArraysSplit(0)
+		,_totalDeepStructures(0)
+		,_totalObjsDeepScanned(0)
+		,_depthDeepestStructure(0)
+		,_deepScanSuppressed(false)
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 		,_heapExpandedBytes(0)
 		,_heapExpandedCount(0)
