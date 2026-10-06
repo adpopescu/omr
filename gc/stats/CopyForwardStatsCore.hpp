@@ -109,6 +109,9 @@ public:
 	uintptr_t _deepScanSkipSuppressed; /**< deepScanOutline early exits due to _deepScanSuppressed flag (no survivor space earlier in this cycle) */
 	uintptr_t _deepScanSkipNoEvacuation; /**< deepScanOutline early exits because the object's region is marked _noEvacuation */
 	uintptr_t _deepScanExitThrottle; /**< deepScanOutline exits mid-chain due to throttle (cache-release budget exceeded) or node cap */
+	uintptr_t _deepScanExitNotInEvacuate; /**< deepScanOutline mid-chain exits because the next-pointer target is not in the PGC collection set (region not selected for evacuation) */
+	uintptr_t _deepScanExitForwarded; /**< deepScanOutline mid-chain exits because the next-pointer target was already forwarded by another thread */
+	uintptr_t _deepScanCachesReleased; /**< Scan caches released to the shared list from inside deepScanOutline() across all invocations — isolates deep scan's contribution to shared queue pressure */
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
 	uintptr_t _heapExpandedBytes; /**< Bytes by which the heap expanded in order to complete the collection */
@@ -271,6 +274,9 @@ public:
 		_deepScanSkipSuppressed = 0;
 		_deepScanSkipNoEvacuation = 0;
 		_deepScanExitThrottle = 0;
+		_deepScanExitNotInEvacuate = 0;
+		_deepScanExitForwarded = 0;
+		_deepScanCachesReleased = 0;
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 		
 		_heapExpandedBytes = 0;
@@ -322,6 +328,9 @@ public:
 		_deepScanSkipSuppressed += stats->_deepScanSkipSuppressed;
 		_deepScanSkipNoEvacuation += stats->_deepScanSkipNoEvacuation;
 		_deepScanExitThrottle += stats->_deepScanExitThrottle;
+		_deepScanExitNotInEvacuate += stats->_deepScanExitNotInEvacuate;
+		_deepScanExitForwarded += stats->_deepScanExitForwarded;
+		_deepScanCachesReleased += stats->_deepScanCachesReleased;
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
 		_copyObjectsTotal += stats->_copyObjectsTotal;
@@ -419,6 +428,9 @@ public:
 		,_deepScanSkipSuppressed(0)
 		,_deepScanSkipNoEvacuation(0)
 		,_deepScanExitThrottle(0)
+		,_deepScanExitNotInEvacuate(0)
+		,_deepScanExitForwarded(0)
+		,_deepScanCachesReleased(0)
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 		,_heapExpandedBytes(0)
 		,_heapExpandedCount(0)
