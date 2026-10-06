@@ -105,6 +105,10 @@ public:
 	uintptr_t _totalObjsDeepScanned; /**< The total number of deep structure objects that are special treated (number of copyAndForward with priority) */
 	uintptr_t _depthDeepestStructure; /**< Length of longest deep structure that is special treated */
 	bool _deepScanSuppressed; /**< Set when the first copyAndForward in a deepScanOutline fails (no survivor space); suppresses all further deep scan attempts for this GC cycle */
+	uintptr_t _deepScanSkipGate; /**< Objects that passed SCAN_MIXED_OBJECT_LINKED but were skipped by the 1/N address gate (or disableDeepScan) */
+	uintptr_t _deepScanSkipSuppressed; /**< deepScanOutline early exits due to _deepScanSuppressed flag (no survivor space earlier in this cycle) */
+	uintptr_t _deepScanSkipNoEvacuation; /**< deepScanOutline early exits because the object's region is marked _noEvacuation */
+	uintptr_t _deepScanExitThrottle; /**< deepScanOutline exits mid-chain due to throttle (cache-release budget exceeded) or node cap */
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
 	uintptr_t _heapExpandedBytes; /**< Bytes by which the heap expanded in order to complete the collection */
@@ -263,6 +267,10 @@ public:
 		_totalObjsDeepScanned = 0;
 		_depthDeepestStructure = 0;
 		_deepScanSuppressed = false;
+		_deepScanSkipGate = 0;
+		_deepScanSkipSuppressed = 0;
+		_deepScanSkipNoEvacuation = 0;
+		_deepScanExitThrottle = 0;
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 		
 		_heapExpandedBytes = 0;
@@ -310,6 +318,10 @@ public:
 		if (stats->_depthDeepestStructure > _depthDeepestStructure) {
 			_depthDeepestStructure = stats->_depthDeepestStructure;
 		}
+		_deepScanSkipGate += stats->_deepScanSkipGate;
+		_deepScanSkipSuppressed += stats->_deepScanSkipSuppressed;
+		_deepScanSkipNoEvacuation += stats->_deepScanSkipNoEvacuation;
+		_deepScanExitThrottle += stats->_deepScanExitThrottle;
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
 		_copyObjectsTotal += stats->_copyObjectsTotal;
@@ -403,6 +415,10 @@ public:
 		,_totalObjsDeepScanned(0)
 		,_depthDeepestStructure(0)
 		,_deepScanSuppressed(false)
+		,_deepScanSkipGate(0)
+		,_deepScanSkipSuppressed(0)
+		,_deepScanSkipNoEvacuation(0)
+		,_deepScanExitThrottle(0)
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 		,_heapExpandedBytes(0)
 		,_heapExpandedCount(0)
