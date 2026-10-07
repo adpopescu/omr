@@ -112,6 +112,10 @@ public:
 	uintptr_t _deepScanExitNotInEvacuate; /**< deepScanOutline mid-chain exits because the next-pointer target is not in the PGC collection set (region not selected for evacuation) */
 	uintptr_t _deepScanExitForwarded; /**< deepScanOutline mid-chain exits because the next-pointer target was already forwarded by another thread */
 	uintptr_t _deepScanCachesReleased; /**< Scan caches released to the shared list from inside deepScanOutline() across all invocations — isolates deep scan's contribution to shared queue pressure */
+	/** Per-age-bucket count of exitNotInEvacuate events.  Index = target region age (0–DEEP_SCAN_AGE_BUCKETS-1).
+	 *  Age DEEP_SCAN_AGE_BUCKETS-1 is the saturating bucket for the maximum region age. */
+	static const uintptr_t DEEP_SCAN_AGE_BUCKETS = 25; /**< One bucket per possible region age (0 .. tarokRegionMaxAge == 24) */
+	uintptr_t _deepScanExitNotInEvacuateByAge[DEEP_SCAN_AGE_BUCKETS]; /**< exitNotInEvacuate events bucketed by target region age */
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
 	uintptr_t _heapExpandedBytes; /**< Bytes by which the heap expanded in order to complete the collection */
@@ -277,6 +281,9 @@ public:
 		_deepScanExitNotInEvacuate = 0;
 		_deepScanExitForwarded = 0;
 		_deepScanCachesReleased = 0;
+		for (uintptr_t i = 0; i < DEEP_SCAN_AGE_BUCKETS; i++) {
+			_deepScanExitNotInEvacuateByAge[i] = 0;
+		}
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 		
 		_heapExpandedBytes = 0;
@@ -331,6 +338,9 @@ public:
 		_deepScanExitNotInEvacuate += stats->_deepScanExitNotInEvacuate;
 		_deepScanExitForwarded += stats->_deepScanExitForwarded;
 		_deepScanCachesReleased += stats->_deepScanCachesReleased;
+		for (uintptr_t i = 0; i < DEEP_SCAN_AGE_BUCKETS; i++) {
+			_deepScanExitNotInEvacuateByAge[i] += stats->_deepScanExitNotInEvacuateByAge[i];
+		}
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
 		_copyObjectsTotal += stats->_copyObjectsTotal;
@@ -431,6 +441,7 @@ public:
 		,_deepScanExitNotInEvacuate(0)
 		,_deepScanExitForwarded(0)
 		,_deepScanCachesReleased(0)
+		,_deepScanExitNotInEvacuateByAge()
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 		,_heapExpandedBytes(0)
 		,_heapExpandedCount(0)
