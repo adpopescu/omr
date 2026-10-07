@@ -109,13 +109,32 @@ public:
 	uintptr_t _deepScanSkipSuppressed; /**< deepScanOutline early exits due to _deepScanSuppressed flag (no survivor space earlier in this cycle) */
 	uintptr_t _deepScanSkipNoEvacuation; /**< deepScanOutline early exits because the object's region is marked _noEvacuation */
 	uintptr_t _deepScanExitThrottle; /**< deepScanOutline exits mid-chain due to throttle (cache-release budget exceeded) or node cap */
-	uintptr_t _deepScanExitNotInEvacuate; /**< deepScanOutline mid-chain exits because the next-pointer target is not in the PGC collection set (region not selected for evacuation) */
+	uintptr_t _deepScanExitNull;       /**< true dead-end exits: NULL on field2, or NULL on field1 when no field2 exists. Does NOT count field1-null retries that will proceed to field2. */
+	uintptr_t _deepScanExitOutOfHeap;  /**< deepScanOutline mid-chain exits: target pointer is outside heap bounds */
+	uintptr_t _deepScanExitNotInCS;    /**< deepScanOutline mid-chain exits: target is in-heap but region not in PGC collection set */
+	/** Sum of the three above — retained for verbosegc backwards compat */
+	uintptr_t _deepScanExitNotInEvacuate; /**< total mid-chain exits = exitNull + exitOutOfHeap + exitNotInCS (note: exitNull no longer double-counts field1-null retries) */
 	uintptr_t _deepScanExitForwarded; /**< deepScanOutline mid-chain exits because the next-pointer target was already forwarded by another thread */
 	uintptr_t _deepScanCachesReleased; /**< Scan caches released to the shared list from inside deepScanOutline() across all invocations — isolates deep scan's contribution to shared queue pressure */
 	/** Per-age-bucket count of exitNotInEvacuate events.  Index = target region age (0–DEEP_SCAN_AGE_BUCKETS-1).
 	 *  Age DEEP_SCAN_AGE_BUCKETS-1 is the saturating bucket for the maximum region age. */
 	static const uintptr_t DEEP_SCAN_AGE_BUCKETS = 25; /**< One bucket per possible region age (0 .. tarokRegionMaxAge == 24) */
-	uintptr_t _deepScanExitNotInEvacuateByAge[DEEP_SCAN_AGE_BUCKETS]; /**< exitNotInEvacuate events bucketed by target region age */
+	uintptr_t _deepScanExitNotInEvacuateByAge[DEEP_SCAN_AGE_BUCKETS]; /**< exitNotInEvacuate events bucketed by target (next-hop) region age */
+	uintptr_t _deepScanExitNotInEvacuateSrcByAge[DEEP_SCAN_AGE_BUCKETS]; /**< exitNotInEvacuate events bucketed by source (current walk node) region age */
+	/** Transition matrix [src_age][tgt_age]: count of exitNotInEvacuate hops from a region of src_age
+	 *  to a target object in a region of tgt_age.  Both indices are clamped to DEEP_SCAN_AGE_BUCKETS-1. */
+	uintptr_t _deepScanExitNotInEvacuateMatrix[DEEP_SCAN_AGE_BUCKETS][DEEP_SCAN_AGE_BUCKETS];
+	/** Three-way hop classification:
+	 *  - green (hit):       targetObj IS in the evacuate set — walk continues.
+	 *  - yellow (miss-same): targetObj NOT in evacuate set AND srcAge == tgtAge.
+	 *  - red   (miss-diff):  targetObj NOT in evacuate set AND srcAge != tgtAge.
+	 *  Per-age arrays use the source-region age as the bucket index. */
+	uintptr_t _deepScanHit;          /**< hops where the target WAS in the evacuate set (walk continues) */
+	uintptr_t _deepScanMissSameAge;  /**< exits where src and tgt region ages are equal */
+	uintptr_t _deepScanMissDiffAge;  /**< exits where src and tgt region ages differ */
+	uintptr_t _deepScanHitByAge[DEEP_SCAN_AGE_BUCKETS];         /**< _deepScanHit bucketed by src region age */
+	uintptr_t _deepScanMissSameAgeByAge[DEEP_SCAN_AGE_BUCKETS]; /**< _deepScanMissSameAge bucketed by src region age */
+	uintptr_t _deepScanMissDiffAgeByAge[DEEP_SCAN_AGE_BUCKETS]; /**< _deepScanMissDiffAge bucketed by src region age */
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
 	uintptr_t _heapExpandedBytes; /**< Bytes by which the heap expanded in order to complete the collection */
@@ -278,11 +297,24 @@ public:
 		_deepScanSkipSuppressed = 0;
 		_deepScanSkipNoEvacuation = 0;
 		_deepScanExitThrottle = 0;
+		_deepScanExitNull = 0;
+		_deepScanExitOutOfHeap = 0;
+		_deepScanExitNotInCS = 0;
 		_deepScanExitNotInEvacuate = 0;
 		_deepScanExitForwarded = 0;
 		_deepScanCachesReleased = 0;
+		_deepScanHit = 0;
+		_deepScanMissSameAge = 0;
+		_deepScanMissDiffAge = 0;
 		for (uintptr_t i = 0; i < DEEP_SCAN_AGE_BUCKETS; i++) {
 			_deepScanExitNotInEvacuateByAge[i] = 0;
+			_deepScanExitNotInEvacuateSrcByAge[i] = 0;
+			_deepScanHitByAge[i] = 0;
+			_deepScanMissSameAgeByAge[i] = 0;
+			_deepScanMissDiffAgeByAge[i] = 0;
+			for (uintptr_t j = 0; j < DEEP_SCAN_AGE_BUCKETS; j++) {
+				_deepScanExitNotInEvacuateMatrix[i][j] = 0;
+			}
 		}
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 		
@@ -335,11 +367,24 @@ public:
 		_deepScanSkipSuppressed += stats->_deepScanSkipSuppressed;
 		_deepScanSkipNoEvacuation += stats->_deepScanSkipNoEvacuation;
 		_deepScanExitThrottle += stats->_deepScanExitThrottle;
+		_deepScanExitNull += stats->_deepScanExitNull;
+		_deepScanExitOutOfHeap += stats->_deepScanExitOutOfHeap;
+		_deepScanExitNotInCS += stats->_deepScanExitNotInCS;
 		_deepScanExitNotInEvacuate += stats->_deepScanExitNotInEvacuate;
 		_deepScanExitForwarded += stats->_deepScanExitForwarded;
 		_deepScanCachesReleased += stats->_deepScanCachesReleased;
+		_deepScanHit += stats->_deepScanHit;
+		_deepScanMissSameAge += stats->_deepScanMissSameAge;
+		_deepScanMissDiffAge += stats->_deepScanMissDiffAge;
 		for (uintptr_t i = 0; i < DEEP_SCAN_AGE_BUCKETS; i++) {
 			_deepScanExitNotInEvacuateByAge[i] += stats->_deepScanExitNotInEvacuateByAge[i];
+			_deepScanExitNotInEvacuateSrcByAge[i] += stats->_deepScanExitNotInEvacuateSrcByAge[i];
+			_deepScanHitByAge[i] += stats->_deepScanHitByAge[i];
+			_deepScanMissSameAgeByAge[i] += stats->_deepScanMissSameAgeByAge[i];
+			_deepScanMissDiffAgeByAge[i] += stats->_deepScanMissDiffAgeByAge[i];
+			for (uintptr_t j = 0; j < DEEP_SCAN_AGE_BUCKETS; j++) {
+				_deepScanExitNotInEvacuateMatrix[i][j] += stats->_deepScanExitNotInEvacuateMatrix[i][j];
+			}
 		}
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
@@ -438,10 +483,21 @@ public:
 		,_deepScanSkipSuppressed(0)
 		,_deepScanSkipNoEvacuation(0)
 		,_deepScanExitThrottle(0)
+		,_deepScanExitNull(0)
+		,_deepScanExitOutOfHeap(0)
+		,_deepScanExitNotInCS(0)
 		,_deepScanExitNotInEvacuate(0)
 		,_deepScanExitForwarded(0)
 		,_deepScanCachesReleased(0)
 		,_deepScanExitNotInEvacuateByAge()
+		,_deepScanExitNotInEvacuateSrcByAge()
+		,_deepScanExitNotInEvacuateMatrix()
+		,_deepScanHit(0)
+		,_deepScanMissSameAge(0)
+		,_deepScanMissDiffAge(0)
+		,_deepScanHitByAge()
+		,_deepScanMissSameAgeByAge()
+		,_deepScanMissDiffAgeByAge()
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 		,_heapExpandedBytes(0)
 		,_heapExpandedCount(0)
