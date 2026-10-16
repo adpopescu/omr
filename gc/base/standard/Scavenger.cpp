@@ -823,6 +823,13 @@ MM_Scavenger::mergeGCStatsBase(MM_EnvironmentBase *env, MM_ScavengerStats *final
 	finalGCStats->_totalDeepStructures += scavStats->_totalDeepStructures;
 	finalGCStats->_totalObjsDeepScanned += scavStats->_totalObjsDeepScanned;
 	finalGCStats->_depthDeepestStructure = scavStats->_depthDeepestStructure;
+	finalGCStats->_deepScanExitNull += scavStats->_deepScanExitNull;
+	finalGCStats->_deepScanExitNotInCS += scavStats->_deepScanExitNotInCS;
+	finalGCStats->_deepScanExitForwarded += scavStats->_deepScanExitForwarded;
+	finalGCStats->_deepScanExitThrottle += scavStats->_deepScanExitThrottle;
+	for (uintptr_t i = 0; i < MM_ScavengerStats::DEEP_SCAN_WALK_HISTOGRAM_BUCKETS; i++) {
+		finalGCStats->_deepScanWalkHistogram[i] += scavStats->_deepScanWalkHistogram[i];
+	}
 	finalGCStats->_copyScanUpdates += scavStats->_copyScanUpdates;
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
@@ -2099,7 +2106,8 @@ MM_Scavenger::scavengeObjectSlots(MM_EnvironmentStandard *env, MM_CopyScanCacheS
 }
 
 void
-MM_Scavenger::deepScanOutline(MM_EnvironmentStandard *env, omrobjectptr_t objectPtr, uintptr_t priorityFieldOffset1, uintptr_t priorityFieldOffset2)
+MM_Scavenger::deepScanOutline(MM_EnvironmentStandard *env, omrobjectptr_t objectPtr, uintptr_t priorityFieldOffset1, uintptr_t priorityFieldOffset2,
+                               uintptr_t *outWalked, uintptr_t *outExitCause)
 {
 	void *currentDeepObj = objectPtr;
 	uintptr_t priorityField = priorityFieldOffset1;
@@ -2113,11 +2121,32 @@ MM_Scavenger::deepScanOutline(MM_EnvironmentStandard *env, omrobjectptr_t object
 
 	do {
 		GC_SlotObject prioritySlot(env->getOmrVM(), (fomrobject_t*)(((uintptr_t) currentDeepObj) + priorityField));
+#if defined(J9MODRON_TGC_PARALLEL_STATISTICS)
+		/* Classify this hop before copyAndForward clears/updates _effectiveCopyScanCache. */
+		omrobjectptr_t slotVal = prioritySlot.readReferenceFromSlot();
+#endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 		copyAndForward(env, &prioritySlot);
 		/* Did we encounter an already visited/NULL object? */
 		if (NULL == env->_effectiveCopyScanCache) {
 			/* Can't continue any further - attempt to deep scan with other self referencing field (e.g, prev field) */
 			if ((priorityField == priorityFieldOffset2) || (priorityFieldOffset2 == 0)) {
+#if defined(J9MODRON_TGC_PARALLEL_STATISTICS)
+				/* Classify the terminal exit cause. */
+				uintptr_t exitCause;
+				if (NULL == slotVal) {
+					env->_scavengerStats._deepScanExitNull += 1;
+					exitCause = MM_Scavenger::DEEP_SCAN_EXIT_NULL;
+				} else if (isObjectInEvacuateMemory(slotVal)) {
+					/* In evacuate but effectiveCopyScanCache is NULL: already forwarded. */
+					env->_scavengerStats._deepScanExitForwarded += 1;
+					exitCause = MM_Scavenger::DEEP_SCAN_EXIT_FORWARDED;
+				} else {
+					/* Not NULL, not in evacuate memory: tenure or out-of-heap. */
+					env->_scavengerStats._deepScanExitNotInCS += 1;
+					exitCause = MM_Scavenger::DEEP_SCAN_EXIT_NOT_IN_CS;
+				}
+				if (NULL != outExitCause) *outExitCause = exitCause;
+#endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 				break;
 			}
 			priorityField = priorityFieldOffset2;
@@ -2129,6 +2158,10 @@ MM_Scavenger::deepScanOutline(MM_EnvironmentStandard *env, omrobjectptr_t object
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
 		if(env->approxScanCacheCount > freeListUtilizationLimit) {
+#if defined(J9MODRON_TGC_PARALLEL_STATISTICS)
+			env->_scavengerStats._deepScanExitThrottle += 1;
+			if (NULL != outExitCause) *outExitCause = MM_Scavenger::DEEP_SCAN_EXIT_THROTTLE;
+#endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 			break;
 		}
 		currentDeepObj = prioritySlot.readReferenceFromSlot();
@@ -2138,9 +2171,21 @@ MM_Scavenger::deepScanOutline(MM_EnvironmentStandard *env, omrobjectptr_t object
 	} while (NULL != currentDeepObj);
 
 #if defined(J9MODRON_TGC_PARALLEL_STATISTICS)
+	if (NULL != outWalked) *outWalked = objDeepScanned;
 	env->_scavengerStats._totalObjsDeepScanned += objDeepScanned;
 	if (objDeepScanned > env->_scavengerStats._depthDeepestStructure) {
 		env->_scavengerStats._depthDeepestStructure = objDeepScanned;
+	}
+	{
+		/* Bucket = floor(log2(objDeepScanned + 1)), capped at BUCKETS-1.
+		 * walked=0 → bucket 0, walked=1 → bucket 1, walked=2-3 → bucket 2, etc. */
+		uintptr_t v = objDeepScanned + 1;
+		uintptr_t bucket = 0;
+		while (v > 1) { v >>= 1; bucket++; }
+		if (bucket >= MM_ScavengerStats::DEEP_SCAN_WALK_HISTOGRAM_BUCKETS) {
+			bucket = MM_ScavengerStats::DEEP_SCAN_WALK_HISTOGRAM_BUCKETS - 1;
+		}
+		env->_scavengerStats._deepScanWalkHistogram[bucket] += 1;
 	}
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 }

@@ -104,6 +104,12 @@ public:
 	uintptr_t _totalDeepStructures; /**< The number of deep structures that are scanned with priority (number of deepScanOutline function calls) */
 	uintptr_t _totalObjsDeepScanned; /**< The total number of deep structure objects that are special treated (number of copyAndForward with priority) */
 	uintptr_t _depthDeepestStructure; /**< Length of longest deep structure that is special treated */
+	/** Walk-depth histogram: bucket k holds the count of deepScanOutline() calls that
+	 *  walked exactly floor(log2(walked+1)) == k hops before hitting a terminal.
+	 *  k=0: walked 0 (immediate exit), k=1: walked 1, k=2: walked 2-3, k=3: 4-7, ...
+	 *  k=15: walked >= 16384.  Covers the full realistic range for both collectors. */
+	static const uintptr_t DEEP_SCAN_WALK_HISTOGRAM_BUCKETS = 16;
+	uintptr_t _deepScanWalkHistogram[DEEP_SCAN_WALK_HISTOGRAM_BUCKETS];
 	bool _deepScanSuppressed; /**< Set when the first copyAndForward in a deepScanOutline fails (no survivor space); suppresses all further deep scan attempts for this GC cycle */
 	uintptr_t _deepScanSkipGate; /**< Objects that passed SCAN_MIXED_OBJECT_LINKED but were skipped by the 1/N address gate (or disableDeepScan) */
 	uintptr_t _deepScanSkipSuppressed; /**< deepScanOutline early exits due to _deepScanSuppressed flag (no survivor space earlier in this cycle) */
@@ -292,6 +298,9 @@ public:
 		_totalDeepStructures = 0;
 		_totalObjsDeepScanned = 0;
 		_depthDeepestStructure = 0;
+		for (uintptr_t i = 0; i < DEEP_SCAN_WALK_HISTOGRAM_BUCKETS; i++) {
+			_deepScanWalkHistogram[i] = 0;
+		}
 		_deepScanSuppressed = false;
 		_deepScanSkipGate = 0;
 		_deepScanSkipSuppressed = 0;
@@ -362,6 +371,9 @@ public:
 		_totalObjsDeepScanned += stats->_totalObjsDeepScanned;
 		if (stats->_depthDeepestStructure > _depthDeepestStructure) {
 			_depthDeepestStructure = stats->_depthDeepestStructure;
+		}
+		for (uintptr_t i = 0; i < DEEP_SCAN_WALK_HISTOGRAM_BUCKETS; i++) {
+			_deepScanWalkHistogram[i] += stats->_deepScanWalkHistogram[i];
 		}
 		_deepScanSkipGate += stats->_deepScanSkipGate;
 		_deepScanSkipSuppressed += stats->_deepScanSkipSuppressed;
@@ -478,6 +490,7 @@ public:
 		,_totalDeepStructures(0)
 		,_totalObjsDeepScanned(0)
 		,_depthDeepestStructure(0)
+		,_deepScanWalkHistogram()
 		,_deepScanSuppressed(false)
 		,_deepScanSkipGate(0)
 		,_deepScanSkipSuppressed(0)

@@ -93,6 +93,14 @@ public:
 	uintptr_t _totalDeepStructures; /**<  The number of deep structures that are scanned with priority (number of deepScanOutline function calls) */
 	uintptr_t _totalObjsDeepScanned; /**< The total number of deep structure objects that are special treated (number of copyAndForward with priority)*/
 	uintptr_t _depthDeepestStructure; /**< Length of longest deep structure that is special treated */
+	uintptr_t _deepScanExitNull;      /**< Chain exits: slot was NULL (natural chain termination) */
+	uintptr_t _deepScanExitNotInCS;   /**< Chain exits: target is not in nursery (old-gen object or out-of-heap) */
+	uintptr_t _deepScanExitForwarded; /**< Chain exits: target was already copied/forwarded by another thread */
+	uintptr_t _deepScanExitThrottle;  /**< Chain exits: cache-utilisation throttle limit reached mid-chain */
+	/** Walk-depth histogram, same bucketing as CopyForwardStatsCore::_deepScanWalkHistogram.
+	 *  k=0: walked 0, k=1: walked 1, k=2: 2-3, k=3: 4-7, ..., k=15: >=16384. */
+	static const uintptr_t DEEP_SCAN_WALK_HISTOGRAM_BUCKETS = 16;
+	uintptr_t _deepScanWalkHistogram[DEEP_SCAN_WALK_HISTOGRAM_BUCKETS];
 	uintptr_t _copyScanUpdates;
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 

@@ -62,6 +62,11 @@ MM_ScavengerStats::MM_ScavengerStats()
 	,_totalDeepStructures(0)
 	,_totalObjsDeepScanned(0)
 	,_depthDeepestStructure(0)
+	,_deepScanExitNull(0)
+	,_deepScanExitNotInCS(0)
+	,_deepScanExitForwarded(0)
+	,_deepScanExitThrottle(0)
+	,_deepScanWalkHistogram()
 	,_copyScanUpdates(0)
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 	,_startTime(0)
@@ -177,6 +182,11 @@ MM_ScavengerStats::clear(bool firstIncrement)
 	_totalDeepStructures = 0;
 	_totalObjsDeepScanned = 0;
 	_depthDeepestStructure = 0;
+	_deepScanExitNull = 0;
+	_deepScanExitNotInCS = 0;
+	_deepScanExitForwarded = 0;
+	_deepScanExitThrottle = 0;
+	memset(_deepScanWalkHistogram, 0, sizeof(_deepScanWalkHistogram));
 	_copyScanUpdates = 0;
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 	/* NOTE: _startTime and _endTime are also not cleared

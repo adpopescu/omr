@@ -325,14 +325,15 @@ public:
 	 * it will attempt to use the second self referencing field 
 	 */
 	MMINLINE void
-	deepScan(MM_EnvironmentStandard *env, omrobjectptr_t objectPtr, uintptr_t priorityFieldOffset1, uintptr_t priorityFieldOffset2)
+	deepScan(MM_EnvironmentStandard *env, omrobjectptr_t objectPtr, uintptr_t priorityFieldOffset1, uintptr_t priorityFieldOffset2,
+	         uintptr_t *outWalked = NULL, uintptr_t *outExitCause = NULL)
 	{
 		/**
-		* Inhibit the special treatment routine with relatively high probability to skip over most  
+		* Inhibit the special treatment routine with relatively high probability to skip over most
 		* false positives (shorter lists), while only marginally delay detection of very deep structures.
-		*/	
+		*/
 		if (shouldStartDeepScan(env, objectPtr)) {
-			deepScanOutline(env, objectPtr, priorityFieldOffset1, priorityFieldOffset2);
+			deepScanOutline(env, objectPtr, priorityFieldOffset1, priorityFieldOffset2, outWalked, outExitCause);
 		}
 	}
 	
@@ -352,7 +353,19 @@ public:
 		return (0 == ((uintptr_t)objectPtr & 0x78));
 	}
 
-	void deepScanOutline(MM_EnvironmentStandard *env, omrobjectptr_t objectPtr, uintptr_t priorityFieldOffset1, uintptr_t priorityFieldOffset2);
+	/**
+	 * Exit cause codes written to *outExitCause by deepScanOutline() (under J9MODRON_TGC_PARALLEL_STATISTICS).
+	 * Values match the per-class probe table fields in MM_DeepScanClassProbe.
+	 */
+	enum DeepScanExitCause {
+		DEEP_SCAN_EXIT_NULL      = 0,
+		DEEP_SCAN_EXIT_FORWARDED = 1,
+		DEEP_SCAN_EXIT_NOT_IN_CS = 2,
+		DEEP_SCAN_EXIT_THROTTLE  = 3
+	};
+
+	void deepScanOutline(MM_EnvironmentStandard *env, omrobjectptr_t objectPtr, uintptr_t priorityFieldOffset1, uintptr_t priorityFieldOffset2,
+	                     uintptr_t *outWalked = NULL, uintptr_t *outExitCause = NULL);
 
 	MMINLINE bool scavengeRememberedObject(MM_EnvironmentStandard *env, omrobjectptr_t objectPtr);
 	void scavengeRememberedSetList(MM_EnvironmentStandard *env);
