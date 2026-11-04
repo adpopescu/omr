@@ -101,47 +101,9 @@ public:
 	uint64_t _completeStallTime; 	/**< The time, in hi-res ticks, the thread spent stalled waiting for all other threads to complete working */
 	uintptr_t _copiedArraysSplit; 	/**< The number of array chunks (not counting parts smaller than the split size) processed by this thread in copy-forward mode*/
 	uintptr_t _markedArraysSplit; 	/**< The number of array chunks (not counting parts smaller than the split size) processed by this thread in mark mode*/
-	uintptr_t _totalDeepStructures; /**< The number of deep structures that are scanned with priority (number of deepScanOutline function calls) */
-	uintptr_t _totalObjsDeepScanned; /**< The total number of deep structure objects that are special treated (number of copyAndForward with priority) */
-	uintptr_t _depthDeepestStructure; /**< Length of longest deep structure that is special treated */
-	/** Walk-depth histogram: bucket k holds the count of deepScanOutline() calls that
-	 *  walked exactly floor(log2(walked+1)) == k hops before hitting a terminal.
-	 *  k=0: walked 0 (immediate exit), k=1: walked 1, k=2: walked 2-3, k=3: 4-7, ...
-	 *  k=15: walked >= 16384.  Covers the full realistic range for both collectors. */
-	static const uintptr_t DEEP_SCAN_WALK_HISTOGRAM_BUCKETS = 16;
-	uintptr_t _deepScanWalkHistogram[DEEP_SCAN_WALK_HISTOGRAM_BUCKETS];
-	bool _deepScanSuppressed; /**< Set when the first copyAndForward in a deepScanOutline fails (no survivor space); suppresses all further deep scan attempts for this GC cycle */
-	uintptr_t _deepScanSkipGate; /**< Objects that passed SCAN_MIXED_OBJECT_LINKED but were skipped by the 1/N address gate (or disableDeepScan) */
-	uintptr_t _deepScanSkipSuppressed; /**< deepScanOutline early exits due to _deepScanSuppressed flag (no survivor space earlier in this cycle) */
-	uintptr_t _deepScanSkipNoEvacuation; /**< deepScanOutline early exits because the object's region is marked _noEvacuation */
-	uintptr_t _deepScanExitThrottle; /**< deepScanOutline exits mid-chain due to throttle (cache-release budget exceeded) or node cap */
-	uintptr_t _deepScanExitNull;       /**< true dead-end exits: NULL on field2, or NULL on field1 when no field2 exists. Does NOT count field1-null retries that will proceed to field2. */
-	uintptr_t _deepScanExitOutOfHeap;  /**< deepScanOutline mid-chain exits: target pointer is outside heap bounds */
-	uintptr_t _deepScanExitNotInCS;    /**< deepScanOutline mid-chain exits: target is in-heap but region not in PGC collection set */
-	/** Sum of the three above — retained for verbosegc backwards compat */
-	uintptr_t _deepScanExitNotInEvacuate; /**< total mid-chain exits = exitNull + exitOutOfHeap + exitNotInCS (note: exitNull no longer double-counts field1-null retries) */
-	uintptr_t _deepScanExitForwarded; /**< deepScanOutline mid-chain exits because the next-pointer target was already forwarded by another thread */
-	uintptr_t _deepScanCachesReleased; /**< Scan caches released to the shared list from inside deepScanOutline() across all invocations — isolates deep scan's contribution to shared queue pressure */
-	/** Per-age-bucket count of exitNotInEvacuate events.  Index = target region age (0–DEEP_SCAN_AGE_BUCKETS-1).
-	 *  Age DEEP_SCAN_AGE_BUCKETS-1 is the saturating bucket for the maximum region age. */
-	static const uintptr_t DEEP_SCAN_AGE_BUCKETS = 25; /**< One bucket per possible region age (0 .. tarokRegionMaxAge == 24) */
-	uintptr_t _deepScanExitNotInEvacuateByAge[DEEP_SCAN_AGE_BUCKETS]; /**< exitNotInEvacuate events bucketed by target (next-hop) region age */
-	uintptr_t _deepScanExitNotInEvacuateSrcByAge[DEEP_SCAN_AGE_BUCKETS]; /**< exitNotInEvacuate events bucketed by source (current walk node) region age */
-	/** Transition matrix [src_age][tgt_age]: count of exitNotInEvacuate hops from a region of src_age
-	 *  to a target object in a region of tgt_age.  Both indices are clamped to DEEP_SCAN_AGE_BUCKETS-1. */
-	uintptr_t _deepScanExitNotInEvacuateMatrix[DEEP_SCAN_AGE_BUCKETS][DEEP_SCAN_AGE_BUCKETS];
-	/** Three-way hop classification:
-	 *  - green (hit):       targetObj IS in the evacuate set — walk continues.
-	 *  - yellow (miss-same): targetObj NOT in evacuate set AND srcAge == tgtAge.
-	 *  - red   (miss-diff):  targetObj NOT in evacuate set AND srcAge != tgtAge.
-	 *  Per-age arrays use the source-region age as the bucket index. */
-	uintptr_t _deepScanHit;          /**< hops where the target WAS in the evacuate set (walk continues) */
-	uintptr_t _deepScanMissSameAge;  /**< exits where src and tgt region ages are equal */
-	uintptr_t _deepScanMissDiffAge;  /**< exits where src and tgt region ages differ */
-	uintptr_t _deepScanHitByAge[DEEP_SCAN_AGE_BUCKETS];         /**< _deepScanHit bucketed by src region age */
-	uintptr_t _deepScanMissSameAgeByAge[DEEP_SCAN_AGE_BUCKETS]; /**< _deepScanMissSameAge bucketed by src region age */
-	uintptr_t _deepScanMissDiffAgeByAge[DEEP_SCAN_AGE_BUCKETS]; /**< _deepScanMissDiffAge bucketed by src region age */
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
+
+	bool _deepScanSuppressed; /**< Set when the first copyAndForward in a deepScanOutline fails (no survivor space); suppresses all further deep scan attempts for this GC cycle */
 
 	uintptr_t _heapExpandedBytes; /**< Bytes by which the heap expanded in order to complete the collection */
 	uintptr_t _heapExpandedCount; /**< The number of times the heap was expanded in order to complete the collection */
@@ -295,38 +257,10 @@ public:
 		_completeStallTime = 0;
 		_copiedArraysSplit = 0;
 		_markedArraysSplit = 0;
-		_totalDeepStructures = 0;
-		_totalObjsDeepScanned = 0;
-		_depthDeepestStructure = 0;
-		for (uintptr_t i = 0; i < DEEP_SCAN_WALK_HISTOGRAM_BUCKETS; i++) {
-			_deepScanWalkHistogram[i] = 0;
-		}
-		_deepScanSuppressed = false;
-		_deepScanSkipGate = 0;
-		_deepScanSkipSuppressed = 0;
-		_deepScanSkipNoEvacuation = 0;
-		_deepScanExitThrottle = 0;
-		_deepScanExitNull = 0;
-		_deepScanExitOutOfHeap = 0;
-		_deepScanExitNotInCS = 0;
-		_deepScanExitNotInEvacuate = 0;
-		_deepScanExitForwarded = 0;
-		_deepScanCachesReleased = 0;
-		_deepScanHit = 0;
-		_deepScanMissSameAge = 0;
-		_deepScanMissDiffAge = 0;
-		for (uintptr_t i = 0; i < DEEP_SCAN_AGE_BUCKETS; i++) {
-			_deepScanExitNotInEvacuateByAge[i] = 0;
-			_deepScanExitNotInEvacuateSrcByAge[i] = 0;
-			_deepScanHitByAge[i] = 0;
-			_deepScanMissSameAgeByAge[i] = 0;
-			_deepScanMissDiffAgeByAge[i] = 0;
-			for (uintptr_t j = 0; j < DEEP_SCAN_AGE_BUCKETS; j++) {
-				_deepScanExitNotInEvacuateMatrix[i][j] = 0;
-			}
-		}
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
-		
+
+		_deepScanSuppressed = false;
+
 		_heapExpandedBytes = 0;
 		_heapExpandedCount = 0;
 		_heapExpandedTime = 0;
@@ -367,37 +301,6 @@ public:
 		_completeStallTime += stats->_completeStallTime;
 		_copiedArraysSplit += stats->_copiedArraysSplit;
 		_markedArraysSplit += stats->_markedArraysSplit;
-		_totalDeepStructures += stats->_totalDeepStructures;
-		_totalObjsDeepScanned += stats->_totalObjsDeepScanned;
-		if (stats->_depthDeepestStructure > _depthDeepestStructure) {
-			_depthDeepestStructure = stats->_depthDeepestStructure;
-		}
-		for (uintptr_t i = 0; i < DEEP_SCAN_WALK_HISTOGRAM_BUCKETS; i++) {
-			_deepScanWalkHistogram[i] += stats->_deepScanWalkHistogram[i];
-		}
-		_deepScanSkipGate += stats->_deepScanSkipGate;
-		_deepScanSkipSuppressed += stats->_deepScanSkipSuppressed;
-		_deepScanSkipNoEvacuation += stats->_deepScanSkipNoEvacuation;
-		_deepScanExitThrottle += stats->_deepScanExitThrottle;
-		_deepScanExitNull += stats->_deepScanExitNull;
-		_deepScanExitOutOfHeap += stats->_deepScanExitOutOfHeap;
-		_deepScanExitNotInCS += stats->_deepScanExitNotInCS;
-		_deepScanExitNotInEvacuate += stats->_deepScanExitNotInEvacuate;
-		_deepScanExitForwarded += stats->_deepScanExitForwarded;
-		_deepScanCachesReleased += stats->_deepScanCachesReleased;
-		_deepScanHit += stats->_deepScanHit;
-		_deepScanMissSameAge += stats->_deepScanMissSameAge;
-		_deepScanMissDiffAge += stats->_deepScanMissDiffAge;
-		for (uintptr_t i = 0; i < DEEP_SCAN_AGE_BUCKETS; i++) {
-			_deepScanExitNotInEvacuateByAge[i] += stats->_deepScanExitNotInEvacuateByAge[i];
-			_deepScanExitNotInEvacuateSrcByAge[i] += stats->_deepScanExitNotInEvacuateSrcByAge[i];
-			_deepScanHitByAge[i] += stats->_deepScanHitByAge[i];
-			_deepScanMissSameAgeByAge[i] += stats->_deepScanMissSameAgeByAge[i];
-			_deepScanMissDiffAgeByAge[i] += stats->_deepScanMissDiffAgeByAge[i];
-			for (uintptr_t j = 0; j < DEEP_SCAN_AGE_BUCKETS; j++) {
-				_deepScanExitNotInEvacuateMatrix[i][j] += stats->_deepScanExitNotInEvacuateMatrix[i][j];
-			}
-		}
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
 
 		_copyObjectsTotal += stats->_copyObjectsTotal;
@@ -487,31 +390,8 @@ public:
 		,_completeStallTime(0)
 		,_copiedArraysSplit(0)
 		,_markedArraysSplit(0)
-		,_totalDeepStructures(0)
-		,_totalObjsDeepScanned(0)
-		,_depthDeepestStructure(0)
-		,_deepScanWalkHistogram()
-		,_deepScanSuppressed(false)
-		,_deepScanSkipGate(0)
-		,_deepScanSkipSuppressed(0)
-		,_deepScanSkipNoEvacuation(0)
-		,_deepScanExitThrottle(0)
-		,_deepScanExitNull(0)
-		,_deepScanExitOutOfHeap(0)
-		,_deepScanExitNotInCS(0)
-		,_deepScanExitNotInEvacuate(0)
-		,_deepScanExitForwarded(0)
-		,_deepScanCachesReleased(0)
-		,_deepScanExitNotInEvacuateByAge()
-		,_deepScanExitNotInEvacuateSrcByAge()
-		,_deepScanExitNotInEvacuateMatrix()
-		,_deepScanHit(0)
-		,_deepScanMissSameAge(0)
-		,_deepScanMissDiffAge(0)
-		,_deepScanHitByAge()
-		,_deepScanMissSameAgeByAge()
-		,_deepScanMissDiffAgeByAge()
 #endif /* J9MODRON_TGC_PARALLEL_STATISTICS */
+		,_deepScanSuppressed(false)
 		,_heapExpandedBytes(0)
 		,_heapExpandedCount(0)
 		,_heapExpandedTime(0)
